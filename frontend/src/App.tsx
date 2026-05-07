@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import './App.css'
+
+const BACKEND_URL = 'https://ev-battery-dashboard-production.up.railway.app'
 
 interface BatteryData {
   soc: number
@@ -10,7 +13,6 @@ interface BatteryData {
   power: number
   cycle_count: number
   estimated_range: number
-  timestamp: number
 }
 
 function App() {
@@ -20,34 +22,24 @@ function App() {
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
-    // Fetch history and cells once
-    fetch('http://127.0.0.1:8000/api/battery/history')
+    fetch(`${BACKEND_URL}/api/battery/history`)
       .then(r => r.json())
       .then(setHistory)
 
-    fetch('http://127.0.0.1:8000/api/battery/cells')
+    fetch(`${BACKEND_URL}/api/battery/cells`)
       .then(r => r.json())
       .then(setCells)
 
-    // Connect WebSocket for live data
-    const ws = new WebSocket('ws://127.0.0.1:8000/ws/battery')
+    const ws = new WebSocket(`wss://ev-battery-dashboard-production.up.railway.app/ws/battery`)
     ws.onmessage = (event) => {
       setBatteryData(JSON.parse(event.data))
     }
     wsRef.current = ws
-
     return () => ws.close()
   }, [])
 
   if (!batteryData) return (
-    <div style={{
-      display: 'flex', justifyContent: 'center',
-      alignItems: 'center', height: '100vh',
-      background: '#0a0a0a', color: '#00d4ff',
-      fontSize: '1.5rem'
-    }}>
-      Connecting to Battery System...
-    </div>
+    <div className="loading">Connecting to Battery System...</div>
   )
 
   return (
@@ -57,7 +49,6 @@ function App() {
         <span className="live-badge">● LIVE</span>
       </header>
 
-      {/* TOP METRICS */}
       <div className="metrics-grid">
         <MetricCard title="State of Charge" value={`${batteryData.soc}%`} color="#00d4ff" />
         <MetricCard title="State of Health" value={`${batteryData.soh}%`} color="#00ff88" />
@@ -69,7 +60,6 @@ function App() {
         <MetricCard title="Est. Range" value={`${batteryData.estimated_range}km`} color="#55efc4" />
       </div>
 
-      {/* CHARTS ROW */}
       <div className="charts-row">
         <ChargeHistoryChart history={history} />
         <CellHealthGrid cells={cells} />
@@ -78,7 +68,6 @@ function App() {
   )
 }
 
-// METRIC CARD COMPONENT
 function MetricCard({ title, value, color }: { title: string, value: string, color: string }) {
   return (
     <div className="metric-card">
@@ -87,9 +76,6 @@ function MetricCard({ title, value, color }: { title: string, value: string, col
     </div>
   )
 }
-
-// CHARGE HISTORY CHART
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 function ChargeHistoryChart({ history }: { history: any[] }) {
   return (
@@ -109,7 +95,6 @@ function ChargeHistoryChart({ history }: { history: any[] }) {
   )
 }
 
-// CELL HEALTH GRID
 function CellHealthGrid({ cells }: { cells: any[] }) {
   return (
     <div className="chart-card">
@@ -119,7 +104,7 @@ function CellHealthGrid({ cells }: { cells: any[] }) {
           <div
             key={cell.id}
             className="cell"
-            style={{ background: cell.status === 'warning' ? '#ff6b6b33' : '#00ff8833' }}
+            style={{ background: cell.status === 'warning' ? '#ff6b6b22' : '#00ff8822' }}
           >
             <div className="cell-id">Cell {cell.id}</div>
             <div className="cell-voltage" style={{ color: cell.status === 'warning' ? '#ff6b6b' : '#00ff88' }}>
