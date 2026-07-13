@@ -1,17 +1,12 @@
 # ⚡ EV Battery Intelligence Dashboard
 
-A production-style real-time battery monitoring dashboard built for 
-electric vehicle high-voltage storage systems — directly aligned with 
-BMW Group's frontend development work in electromobility.
+A production-style real-time battery monitoring dashboard built for electric vehicle high-voltage storage systems, covering live telemetry, cell-level health monitoring, and interactive analytics for battery engineering teams.
 
 ## 🚀 Live Demo
 [View Live Dashboard](https://ev-battery-dashboard-pi.vercel.app)
 
 ## 🎯 What This Project Does
-This dashboard simulates the kind of real-time monitoring interface 
-BMW's battery team builds — displaying live high-voltage battery 
-pack data with WebSocket streaming, interactive charts, and 
-cell-level health monitoring.
+This dashboard simulates the kind of real-time monitoring interface used by EV battery engineering teams — displaying live high-voltage battery pack data with WebSocket streaming, interactive charts, and cell-level health monitoring.
 
 ## ⚙️ Tech Stack
 **Frontend:** React 18, TypeScript, Recharts, WebSocket API  
@@ -51,8 +46,4 @@ npm run dev
 - `GET /api/battery/cells` — Individual cell health data
 - `WS /ws/battery` — Real-time WebSocket stream
 
-## 🏎️ Why This Project
-Built specifically to demonstrate frontend development skills 
-relevant to BMW Group's High-Voltage Storage team — combining 
-React real-time UI, data visualization, and electrical engineering 
-domain knowledge into one production-ready application.
+Built to demonstrate frontend development skills relevant to EV high-voltage storage systems — combining React real-time UI, data visualization, and electrical engineering domain knowledge into one production-ready application.
