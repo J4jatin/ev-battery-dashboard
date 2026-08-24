@@ -42,3 +42,24 @@ export type CellStatus = 'normal' | 'warning'
 
 /** Lifecycle of the live telemetry connection, surfaced in the UI. */
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting'
+
+/**
+ * Summary stats for one real Li-ion cell in the bundled NASA PCoE
+ * degradation dataset. Unlike everything above, this is not simulated.
+ */
+export interface BatterySummary {
+  battery_id: string
+  initial_capacity_ah: number
+  final_capacity_ah: number
+  capacity_fade_percent: number
+  cycle_count: number
+  ambient_temperature_c: number
+  source: string
+}
+
+/** One lab-measured discharge cycle's capacity and derived SOH for a real cell. */
+export interface DegradationCycle {
+  cycle_index: number
+  capacity_ah: number
+  soh_percent: number
+}

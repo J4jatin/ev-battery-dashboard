@@ -5,6 +5,7 @@ import { WS_URL, fetchCells, fetchHistory } from './api'
 import { CellHealthGrid } from './components/CellHealthGrid'
 import { ChargeHistoryChart } from './components/ChargeHistoryChart'
 import { ConnectionBadge } from './components/ConnectionBadge'
+import { DegradationChart } from './components/DegradationChart'
 import { MetricCard } from './components/MetricCard'
 import { useBatteryStream } from './hooks/useBatteryStream'
 import type { CellData, HistoryPoint } from './types'
@@ -60,6 +61,15 @@ export default function App() {
       <div className="charts-row">
         <ChargeHistoryChart history={history} />
         <CellHealthGrid cells={cells} />
+      </div>
+
+      <div className="section-divider">
+        <span>Reference Data</span>
+        <span className="section-divider-note">Real lab measurements, not simulated</span>
+      </div>
+
+      <div className="charts-row charts-row-single">
+        <DegradationChart />
       </div>
     </div>
   )

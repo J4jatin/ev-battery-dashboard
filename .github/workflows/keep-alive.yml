@@ -1,0 +1,17 @@
+name: Keep backend alive
+
+# Render's free tier spins the backend down after 15 minutes of inactivity;
+# the next request then pays a ~30-60s cold start. A scheduled ping every 10
+# minutes keeps it warm so the dashboard feels instant for anyone visiting
+# the live demo link on the resume/portfolio.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health
+        run: curl --fail --silent --show-error https://ev-battery-dashboard.onrender.com/health

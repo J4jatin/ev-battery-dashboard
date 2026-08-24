@@ -12,12 +12,16 @@ Written to be defended line by line.
 > typed React frontend renders live metrics, a 24-hour trend chart, and a
 > per-cell health grid. The streaming layer is isolated in a custom hook that
 > reconnects with exponential backoff, and both sides are covered by tests that
-> run in CI on every push.
+> run in CI on every push. Alongside the simulated telemetry, a second section
+> queries a bundled SQLite database of real NASA lab-measured battery
+> degradation data — the one part of the dashboard that isn't generated.
 
-If they want one sentence more, add the honest framing: *"The data comes from a
-simulator rather than a real vehicle, so the engineering interest is in the
-streaming and resilience layer, not in the data source."* Saying this before
-they ask it is a strength, not a weakness.
+If they want one sentence more, add the honest framing: *"The live telemetry
+comes from a simulator rather than a real vehicle, so the engineering interest
+there is in the streaming and resilience layer, not the data source — but the
+degradation chart is real measured data, served with an actual SQL schema, on
+purpose, to show the same rigor applied to real data as to the simulated
+feed."* Saying this before they ask it is a strength, not a weakness.
 
 ---
 
@@ -204,7 +208,114 @@ or apply the interval per-client.
 
 ---
 
-## 5. Testing
+## 5. The real dataset (Stage 2)
+
+### Why add real data at all, when §1 already frames the simulator as fine?
+
+To show the same rigor applied to real data as to a simulated feed, without
+pretending the two are the same thing. Anyone can generate plausible-looking
+numbers with `random.uniform()`; sourcing, cleaning, modelling and serving a
+real external dataset is a different (and more relevant) skill. The dashboard
+keeps them explicitly separate — different route prefix, different UI section,
+a source citation — rather than quietly blending real and fake data into one
+feed that looks uniformly trustworthy.
+
+### What exactly is the dataset?
+
+The [NASA Ames Prognostics Center of Excellence Li-ion Battery Data
+Set](https://c3.nasa.gov/dashlink/resources/133/) (Saha, B., & Goebel, K.
+(2007). *Battery Data Set*, NASA Ames Prognostics Data Repository). Four 18650
+cells (B0005, B0006, B0007, B0018) were run through repeated charge/discharge
+cycles at room temperature until end of life, with capacity measured on every
+discharge. It is a standard reference dataset in published battery
+state-of-health and remaining-useful-life research, so the numbers are
+independently checkable.
+
+### Why not query the raw NASA files directly at request time?
+
+The raw export is ~21 MB of per-second voltage/current/temperature samples
+(169k+ rows) — far more resolution than a cycle-level degradation chart needs,
+and not something worth committing to a portfolio repo's clone size.
+`scripts/build_battery_history_db.py` is run once, offline, to aggregate that
+down to one row per (cell, cycle) — 636 rows — and only the aggregated result
+is committed. The FastAPI app never parses the raw CSV; it only ever reads the
+small pre-built SQLite file.
+
+**Honest trade-off:** committing the aggregate instead of the raw source means
+the aggregation step isn't independently re-runnable from the repo alone. The
+build script documents the exact source and the column contract it expects,
+so the pipeline is reproducible by anyone who fetches the same NASA data —
+just not literally re-runnable in CI.
+
+### Why SQLite instead of Postgres?
+
+This data is static — NASA stopped collecting it in 2008, so nothing about it
+changes at runtime, and the app never writes to it. A managed database buys
+you concurrent writes, durability guarantees, and scaling — none of which
+apply to read-only reference data ninety cells' worth of size. It would also
+add real operational cost: provisioning, a connection string as another
+secret to manage, and, concretely, Render's free-tier Postgres is deleted
+after 30 days of inactivity — a constraint hit while planning this feature,
+not a hypothetical one. A file committed alongside the code needs none of
+that, while still being genuinely queried with SQL — two related tables, a
+foreign key, `ORDER BY` — rather than loaded as a JSON fixture that happens to
+have "database" in the filename.
+
+**When would this choice flip?** The moment the data needs concurrent writes
+from multiple processes — e.g. if the dashboard let users log their own real
+readings — SQLite's single-writer model stops being adequate and Postgres
+becomes the right call.
+
+### Why two tables instead of one flat table?
+
+`batteries` holds the once-per-cell summary (initial/final capacity, fade %,
+cycle count, the source citation); `degradation_cycles` holds the
+once-per-cycle fact (capacity, derived SOH %), referencing `batteries` by a
+foreign key. Flattening them would repeat the citation string across 636 rows
+for no benefit. It is a small schema, but it is a real one-to-many
+relationship, normalized the way any larger one would be.
+
+### How is `soh_percent` derived, since NASA doesn't publish an official rating?
+
+Each cell's own first measured cycle is used as its 100% reference
+(`soh_percent = capacity_ah / initial_capacity_ah × 100`). This is a
+deliberate modelling choice, not an official NASA-rated nominal capacity —
+the four cells' actual initial capacities range from 1.86 Ah to 2.04 Ah, so a
+single fixed "2 Ah nominal" baseline would misrepresent some of them. Flag
+this as an approximation if asked, the same way §7 flags other modelling
+choices — it is exactly the kind of question this project should invite.
+
+### Why is the battery lookup case-insensitive at the API but not in `battery_history.py`?
+
+`main.py` upper-cases the path parameter before calling `get_battery_cycles`,
+so a client requesting `/api/battery/degradation/b0005` still gets a result.
+`battery_history.py`'s own function does an exact match — no normalization —
+so the data-layer contract stays unambiguous and is tested separately from the
+HTTP-layer convenience. Input normalization belongs at the boundary that
+receives messy client input, not inside the function that owns the query.
+
+### What happens on an unknown battery ID?
+
+`get_battery_cycles` raises a domain-specific `BatteryNotFoundError`, which
+`main.py` catches and translates into an HTTP 404 with a clear message. This
+is the same pattern established in Stage 1 for the WebSocket
+(`WebSocketDisconnect` → clean log line, not a crash): let the layer that
+understands the domain raise a meaningful exception, and let the transport
+layer decide what protocol-level response that becomes.
+
+### Is this the "Applied AI" part of your CV?
+
+No, deliberately not — no model is trained anywhere in this project. It is a
+real dataset served through a normal SQL-backed REST API and rendered as a
+chart, which demonstrates data handling and full-stack skill, not machine
+learning. The RAG/LLM project on the same CV already covers Applied AI; this
+project's distinct value is real-time systems and full-stack engineering, and
+keeping that focus explicit (rather than bolting on a model here too) was a
+deliberate scoping decision, not an oversight.
+
+---
+
+## 6. Testing
 
 ### What do the backend tests actually assert?
 
@@ -241,7 +352,7 @@ need a browser-based tool such as Playwright.
 
 ---
 
-## 6. Battery domain knowledge
+## 7. Battery domain knowledge
 
 **State of Charge (SOC)** — how full the pack is right now, as a percentage.
 Cannot be measured directly. Estimated by coulomb counting (integrating current
@@ -276,15 +387,17 @@ management is a first-class function of a real BMS.
 
 ---
 
-## 7. Known limitations — say these before they ask
+## 8. Known limitations — say these before they ask
 
 Volunteering the weak points is what separates a candidate who *built* something
 from one who merely *finished* it.
 
-1. **The data is simulated.** No real vehicle, no sensors. The engineering value
-   is in the streaming and resilience layer.
-2. **Nothing is persisted.** No database. Restart the backend and all state is
-   gone; `/api/battery/history` generates a fresh random profile on each call, so
+1. **The live telemetry is simulated.** No real vehicle, no sensors — the
+   engineering value there is in the streaming and resilience layer. (The
+   degradation chart is the exception: that data is real. See §5.)
+2. **The live side still has nothing persisted.** No database backs the
+   simulated pack. Restart the backend and all its state is gone;
+   `/api/battery/history` generates a fresh random profile on each call, so
    it does not reconcile with the live reading on screen.
 3. **The pack only discharges.** SOC decreases monotonically toward a 5% floor
    and temperature rises toward a 42°C ceiling, so a long-running instance
@@ -296,13 +409,21 @@ from one who merely *finished* it.
 6. **Types are a hand-written mirror** of the backend rather than generated or
    runtime-validated.
 7. **No jitter on reconnect backoff** (see §3).
+8. **The real dataset is small and single-condition.** Four cells, one ambient
+   temperature (24°C), discharge-cycle capacity only — enough to demonstrate a
+   real SQL-backed feature end to end, not a research-grade sample.
+9. **`soh_percent` for the real cells is derived, not NASA-published** — each
+   cell's own first cycle stands in for 100% (see §5). A different, equally
+   defensible baseline (a fixed nominal capacity) would shift the numbers.
 
 ### What I would build next, in order
 
-1. **Persistence** — write readings to Postgres so history is real history and
-   reconciles with the live stream, and pack state survives a restart.
-2. **Real data** — replace the simulator with a public battery-cycling dataset,
-   so the dashboard visualises measured degradation rather than generated noise.
+1. **Persistence for the live side** — write simulated readings to a real
+   database so history is real history and reconciles with the live stream,
+   and pack state survives a restart.
+2. **More of the real dataset** — the raw NASA export also has charge-cycle
+   and impedance measurements that are not loaded yet; extending the schema
+   to include them would let the degradation chart show more than capacity.
 3. **Runtime schema validation** at the client boundary, or types generated from
    the FastAPI OpenAPI schema.
 4. **Alerting rules** — threshold breaches on cell voltage spread and temperature,
@@ -310,7 +431,7 @@ from one who merely *finished* it.
 
 ---
 
-## 8. Rapid-fire answers
+## 9. Rapid-fire answers
 
 | Question | Answer |
 | --- | --- |
@@ -319,5 +440,7 @@ from one who merely *finished* it.
 | Why Vite? | Fast dev server, first-class TS, and Vitest shares its config and transform pipeline. |
 | Why Recharts? | Declarative React components rather than imperative canvas work; fine for standard chart types. |
 | Why is the frontend separate from the backend? | Independent deploys and scaling; the frontend is static files on a CDN, the backend a stateful process. |
-| Biggest weakness? | Simulated data with no persistence. |
-| What did you learn? | That "real-time" is mostly about failure handling. Streaming data is easy; keeping the stream alive is the actual work. |
+| Why SQLite for the real dataset instead of Postgres? | Static, read-only reference data with no runtime writes; a committed file needs no provisioning and sidesteps Render free-tier Postgres expiring after 30 days. See §5. |
+| Is the degradation chart also simulated? | No — it's the one part of this dashboard that's real. Everything else is generated. |
+| Biggest weakness? | The live telemetry is simulated with no persistence; the real dataset is small and single-condition. |
+| What did you learn? | That "real-time" is mostly about failure handling — streaming data is easy, keeping the stream alive is the actual work — and that "real data" mostly means deciding what *not* to ship (the raw 21 MB) as much as what to. |
