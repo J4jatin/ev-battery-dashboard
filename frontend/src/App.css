@@ -142,3 +142,75 @@ body {
   font-size: 0.8rem;
   margin-top: 4px;
 }
+/* --- Connection status badge ------------------------------------------- */
+
+.status-badge {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.status-live {
+  color: #00ff88;
+  animation: pulse 1.5s infinite;
+}
+
+.status-connecting {
+  color: #ffaa00;
+  animation: pulse 1.5s infinite;
+}
+
+.status-reconnecting {
+  color: #ff6b6b;
+  animation: pulse 0.8s infinite;
+}
+
+.chart-empty {
+  color: #666;
+  font-size: 0.85rem;
+  padding: 40px 0;
+  text-align: center;
+}
+
+/* --- Responsive --------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard {
+    padding: 16px;
+  }
+
+  .header {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  .header h1 {
+    font-size: 1.15rem;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cell-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-badge {
+    animation: none;
+  }
+}
