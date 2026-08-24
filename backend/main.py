@@ -14,9 +14,10 @@ import json
 import logging
 import os
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from battery_history import BatteryNotFoundError, get_battery_cycles, list_batteries
 from battery_simulator import BatterySimulator
 
 logging.basicConfig(level=logging.INFO)
@@ -72,6 +73,26 @@ def get_history():
 def get_cells():
     """Per-cell voltage, temperature and status for the whole pack."""
     return simulator.get_cell_data()
+
+
+@app.get("/api/battery/degradation")
+def get_degradation_summary():
+    """Summary stats for every real cell in the bundled NASA degradation dataset.
+
+    Unlike the endpoints above, this is not simulated: it is real lab-measured
+    capacity fade for four physical 18650 cells. See ``battery_history.py``
+    for provenance and citation.
+    """
+    return list_batteries()
+
+
+@app.get("/api/battery/degradation/{battery_id}")
+def get_degradation_cycles(battery_id: str):
+    """Full cycle-by-cycle capacity/SOH history for one real battery."""
+    try:
+        return get_battery_cycles(battery_id.upper())
+    except BatteryNotFoundError as error:
+        raise HTTPException(status_code=404, detail=f"Unknown battery_id: {battery_id}") from error
 
 
 @app.websocket("/ws/battery")

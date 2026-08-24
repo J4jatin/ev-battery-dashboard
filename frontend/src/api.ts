@@ -5,7 +5,7 @@
  * variable. The WebSocket URL is derived from it rather than written out a
  * second time, so http/https and ws/wss can never drift apart.
  */
-import type { CellData, HistoryPoint } from './types'
+import type { BatterySummary, CellData, DegradationCycle, HistoryPoint } from './types'
 
 const DEFAULT_API_URL = 'http://localhost:8000'
 
@@ -39,3 +39,12 @@ export const fetchHistory = (signal?: AbortSignal): Promise<HistoryPoint[]> =>
 
 export const fetchCells = (signal?: AbortSignal): Promise<CellData[]> =>
   getJson<CellData[]>('/api/battery/cells', signal)
+
+export const fetchDegradationSummary = (signal?: AbortSignal): Promise<BatterySummary[]> =>
+  getJson<BatterySummary[]>('/api/battery/degradation', signal)
+
+export const fetchDegradationCycles = (
+  batteryId: string,
+  signal?: AbortSignal,
+): Promise<DegradationCycle[]> =>
+  getJson<DegradationCycle[]>(`/api/battery/degradation/${batteryId}`, signal)

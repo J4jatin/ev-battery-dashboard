@@ -95,3 +95,45 @@ def test_websocket_disconnect_is_handled_cleanly(client: TestClient) -> None:
         websocket.receive_text()
     # Server still healthy after the disconnect.
     assert client.get("/health").status_code == 200
+
+
+def test_degradation_summary_lists_all_four_real_batteries(client: TestClient) -> None:
+    response = client.get("/api/battery/degradation")
+    assert response.status_code == 200
+    batteries = response.json()
+    assert {battery["battery_id"] for battery in batteries} == {
+        "B0005",
+        "B0006",
+        "B0007",
+        "B0018",
+    }
+    assert set(batteries[0]) == {
+        "battery_id",
+        "initial_capacity_ah",
+        "final_capacity_ah",
+        "capacity_fade_percent",
+        "cycle_count",
+        "ambient_temperature_c",
+        "source",
+    }
+
+
+def test_degradation_cycles_returns_full_history_for_a_known_battery(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/battery/degradation/B0005")
+    assert response.status_code == 200
+    cycles = response.json()
+    assert len(cycles) > 100
+    assert set(cycles[0]) == {"cycle_index", "capacity_ah", "soh_percent"}
+
+
+def test_degradation_cycles_accepts_lowercase_battery_id(client: TestClient) -> None:
+    response = client.get("/api/battery/degradation/b0005")
+    assert response.status_code == 200
+    assert len(response.json()) > 0
+
+
+def test_degradation_cycles_returns_404_for_unknown_battery(client: TestClient) -> None:
+    response = client.get("/api/battery/degradation/B9999")
+    assert response.status_code == 404
